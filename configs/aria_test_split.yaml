@@ -1,0 +1,44 @@
+# Full BSTD test-split run against Aria (rhymes-ai), 25.3B total / ~3.9B
+# active MoE, for comparison against the other models on the identical
+# 1,319-image manifest and prompt.
+#
+# No repetition_penalty set here, deliberately -- Aria ships no sampling
+# recommendation in its own generation_config.json. Per this repo's
+# methodology (see README's Scoring section), we don't invent a number
+# for models that don't ask for one.
+#
+# Start the server first:
+#   vllm serve rhymes-ai/Aria --port 8234 --gpu-memory-utilization 0.75
+# (Native AriaForConditionalGeneration implementation in vLLM. Unlike
+# InternVL2/Phi-3.5-vision/DeepSeek-VL2, this repo ships a proper
+# architectures field, chat_template.json, and no custom modeling code --
+# checked directly before starting the server.)
+#
+# Weights are ~48GB (25.3B total MoE params in bf16) -- pick whichever GPU
+# has the most headroom right now (`nvidia-smi`), not just whichever was
+# free a moment ago: a full attempt at gpu-memory-utilization=0.85 on GPU0
+# hit a genuine CUDA OOM here because another user's job (44GB) started
+# mid-load and won the race for the remaining space. 0.75 leaves more
+# margin for exactly that kind of contention on this shared box.
+#
+# Then:
+#   python3 scripts/run_inference.py --config configs/aria_test_split.yaml
+#   python3 scripts/score.py --manifest dataset/manifest_test.json \
+#       --predictions results/test-split-aria/predictions.json \
+#       --out results/test-split-aria/scores.json
+
+run_name: test-split-aria
+
+model: rhymes-ai/Aria
+
+base_url: http://localhost:8234/v1
+api_key: EMPTY
+
+manifest: dataset/manifest_test.json
+output: results/test-split-aria/predictions.json
+
+prompt: READ_ALL_TEXT
+temperature: 0.0
+max_tokens: 1024
+concurrency: 8
+max_retries: 3

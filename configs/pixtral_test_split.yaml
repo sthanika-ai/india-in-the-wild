@@ -1,0 +1,45 @@
+# Full BSTD test-split run against Pixtral-12B-2409, for direct comparison
+# against Qwen2.5-VL-7B-Instruct on the identical 1,319-image manifest
+# (dataset/manifest_test.json) and prompt.
+#
+# Pixtral ships in Mistral's native checkpoint format (consolidated.safetensors
+# + params.json + tekken.json, no config.json), which vLLM needs these three
+# flags to load -- pixtral.py's own code raises an error without
+# --tokenizer-mode mistral specifically. Start the server first:
+#   CUDA_VISIBLE_DEVICES=0 vllm serve mistralai/Pixtral-12B-2409 \
+#     --tokenizer-mode mistral --config-format mistral --load-format mistral \
+#     --port 8234
+#
+# Then:
+#   python3 scripts/run_inference.py --config configs/pixtral_test_split.yaml
+#   python3 scripts/score.py --manifest dataset/manifest_test.json \
+#       --predictions results/test-split-pixtral-12b/predictions.json \
+#       --out results/test-split-pixtral-12b/scores.json
+
+run_name: test-split-pixtral-12b
+
+model: mistralai/Pixtral-12B-2409
+
+base_url: http://localhost:8234/v1
+api_key: EMPTY
+
+manifest: dataset/manifest_test.json
+output: results/test-split-pixtral-12b/predictions.json
+
+prompt: READ_ALL_TEXT
+temperature: 0.0
+max_tokens: 1024
+concurrency: 8
+max_retries: 3
+# NOT kept identical to Qwen's 1.05 -- verified necessary first. At 1.05,
+# 286/1319 Pixtral outputs (21.7%!) were repetition-loop degenerate,
+# vs ~1/1319 for Qwen at the same setting. Tested 1.3 against 6 confirmed-
+# degenerate images (all fixed, 0 repeats) and 8 apparently-fine images
+# (several turned out to ALSO be degenerate on closer inspection; at 1.3
+# all produced clean output with *additional correct content*, not just
+# fewer repeats of the same wrong guess -- unlike the analogous Qwen test,
+# where a higher penalty broke the loop but the new content was still
+# wrong). No quality regression observed on any tested image. Using 1.05
+# here would mostly measure which model tolerates a bad decoding setting
+# better, not which one reads better.
+repetition_penalty: 1.3

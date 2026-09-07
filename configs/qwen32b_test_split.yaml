@@ -1,0 +1,49 @@
+# Full BSTD test-split run against Qwen2.5-VL-32B-Instruct -- a scaling
+# comparison against the already-benchmarked Qwen2.5-VL-7B-Instruct on the
+# identical 1,319-image manifest (dataset/manifest_test.json) and prompt.
+# Same architecture family (Qwen2_5_VLForConditionalGeneration), natively
+# supported in vLLM -- no --trust-remote-code, no custom tokenizer.
+#
+# repetition_penalty: 1.05 is this checkpoint's OWN shipped default (its
+# generation_config.json recommends 1.05, same as the 7B's -- see
+# qwen7b_test_split.yaml's comment for the repetition-loop tradeoff this
+# repo found at that setting for the 7B). That tradeoff was characterized
+# for the 7B specifically; it has not been verified for the 32B, so per
+# this repo's methodology we don't transfer any adjustment unchecked.
+# Using this model's own recommended default as-is.
+#
+# Start the server first:
+#   CUDA_VISIBLE_DEVICES=1 vllm serve Qwen/Qwen2.5-VL-32B-Instruct --port 8234 \
+#       --gpu-memory-utilization 0.97 --max-model-len 20480 --enforce-eager
+# (32B's bf16 weights alone are ~64GB on this 80GB GPU, leaving little room
+# for KV cache -- unlike the 7B's huge implicit headroom. Measured actual
+# image-token counts across a random 150-image sample of the manifest
+# first: Qwen2.5-VL's own default dynamic-resolution preprocessing pushes
+# high-res photos up to ~16,300 image tokens (p95 = 16,272), so
+# max-model-len must cover that plus prompt text plus max_tokens, not an
+# arbitrary small number -- confirmed via spot-check on the single highest
+# image-token file in the manifest (image_258.jpg, 16,482 prompt tokens)
+# completing with finish_reason=stop, no truncation.
+#
+# Then:
+#   python3 scripts/run_inference.py --config configs/qwen32b_test_split.yaml
+#   python3 scripts/score.py --manifest dataset/manifest_test.json \
+#       --predictions results/test-split-qwen2.5-vl-32b/predictions.json \
+#       --out results/test-split-qwen2.5-vl-32b/scores.json
+
+run_name: test-split-qwen2.5-vl-32b
+
+model: Qwen/Qwen2.5-VL-32B-Instruct
+
+base_url: http://localhost:8234/v1
+api_key: EMPTY
+
+manifest: dataset/manifest_test.json
+output: results/test-split-qwen2.5-vl-32b/predictions.json
+
+prompt: READ_ALL_TEXT
+temperature: 0.0
+max_tokens: 1024
+concurrency: 4
+max_retries: 3
+repetition_penalty: 1.05

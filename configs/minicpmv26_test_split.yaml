@@ -1,0 +1,46 @@
+# Full BSTD test-split run against MiniCPM-V-2_6 (OpenBMB, ~8B), chosen for
+# its OCR/dense-text-reading focus -- directly relevant to this task's
+# "read every piece of legible text" prompt, unlike general-purpose VLMs
+# already tried (Aria, Gemma 3).
+#
+# architectures=["MiniCPMV"], model_type="minicpmv" -- natively registered
+# in vLLM 0.8.5's model registry (no version bump needed), but the repo
+# ships custom modeling code via auto_map, so --trust-remote-code is
+# required. Gated repo -- requires `hf auth login` with an account that
+# has been granted access on the model page first.
+#
+# No repetition_penalty set here, deliberately -- generation_config.json
+# ships no sampling recommendation (checked directly: only bos/eos token
+# ids). Per this repo's methodology, we don't invent a number for models
+# that don't ask for one -- vLLM applies its own neutral default instead.
+#
+# Vision encoder uses llava-uhd-style slicing (max_slice_nums=9, 64 tokens
+# per slice via a SigLIP encoder) -- produces far fewer image tokens per
+# request than Qwen2.5-VL's dynamic-resolution approach, so no InternVL-
+# style memory squeeze/truncation risk expected on this hardware.
+#
+# Start the server first:
+#   CUDA_VISIBLE_DEVICES=1 vllm serve openbmb/MiniCPM-V-2_6 --port 8234 \
+#       --trust-remote-code
+#
+# Then:
+#   python3 scripts/run_inference.py --config configs/minicpmv26_test_split.yaml
+#   python3 scripts/score.py --manifest dataset/manifest_test.json \
+#       --predictions results/test-split-minicpmv-2.6/predictions.json \
+#       --out results/test-split-minicpmv-2.6/scores.json
+
+run_name: test-split-minicpmv-2.6
+
+model: openbmb/MiniCPM-V-2_6
+
+base_url: http://localhost:8234/v1
+api_key: EMPTY
+
+manifest: dataset/manifest_test.json
+output: results/test-split-minicpmv-2.6/predictions.json
+
+prompt: READ_ALL_TEXT
+temperature: 0.0
+max_tokens: 1024
+concurrency: 8
+max_retries: 3

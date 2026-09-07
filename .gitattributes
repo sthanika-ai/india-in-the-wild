@@ -1,0 +1,7 @@
+# The HTML reports are generated write-ups, not source: keep them out of
+# GitHub's language stats so the repo reads as Python.
+*.html linguist-documentation
+
+# Result artifacts are run output, not hand-written source.
+results/** linguist-generated
+dataset/*.json linguist-generated

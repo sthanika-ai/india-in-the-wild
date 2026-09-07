@@ -1,0 +1,37 @@
+# Full BSTD test-split run against Aya Vision 8B (Cohere), for comparison
+# against Qwen2.5-VL-7B and Pixtral-12B on the identical 1,319-image
+# manifest (dataset/manifest_test.json) and prompt.
+#
+# No repetition_penalty set here, deliberately -- Aya Vision's own
+# generation_config.json ships no sampling recommendation (checked
+# directly: only token ids and cache_implementation). Per this repo's
+# methodology (see README's Scoring section and the repetition_penalty
+# investigation), we don't invent a number for models that don't ask for
+# one -- vLLM applies its own neutral default instead.
+#
+# Start the server first:
+#   vllm serve CohereForAI/aya-vision-8b --port 8234
+# (Native AyaVisionForConditionalGeneration implementation in vLLM --
+# no custom modeling code, no --trust-remote-code needed.)
+#
+# Then:
+#   python3 scripts/run_inference.py --config configs/ayavision_test_split.yaml
+#   python3 scripts/score.py --manifest dataset/manifest_test.json \
+#       --predictions results/test-split-ayavision-8b/predictions.json \
+#       --out results/test-split-ayavision-8b/scores.json
+
+run_name: test-split-ayavision-8b
+
+model: CohereForAI/aya-vision-8b
+
+base_url: http://localhost:8234/v1
+api_key: EMPTY
+
+manifest: dataset/manifest_test.json
+output: results/test-split-ayavision-8b/predictions.json
+
+prompt: READ_ALL_TEXT
+temperature: 0.0
+max_tokens: 1024
+concurrency: 8
+max_retries: 3

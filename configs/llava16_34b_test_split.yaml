@@ -1,0 +1,50 @@
+# Full BSTD test-split run against llava-hf/llava-v1.6-34b-hf, the
+# original/foundational open-source VLM lineage -- chosen for a proven,
+# battle-tested vLLM integration after several niche/regional models hit
+# custom-architecture or crash problems (Chitrarth, PALO, Molmo).
+#
+# architectures=["LlavaNextForConditionalGeneration"], model_type=
+# "llava_next" -- the same class Pangea-7B-hf already ran through cleanly
+# on this pipeline. Not gated, no --trust-remote-code needed.
+#
+# repetition_penalty: 1.3 -- NOT the model's own default (it ships none),
+# and set only after empirical justification: at vLLM's neutral default,
+# spot-checks showed the model in a fatal, ~100% repetition-loop
+# degeneration state (every sampled image looped a single phrase to the
+# 1024-token cap). rp=1.1 did not fix it; rp=1.3 fixed it cleanly on the
+# spot-checked image; rp=1.5 caused a *different*, worse failure (a long
+# rambling hallucination unrelated to the image). Verified rp=1.3 on a
+# genuinely random 25-image sample (dataset/manifest_test.json, seed=42)
+# before trusting it: degeneration dropped to 4% (1/25), a residual
+# rambling-hallucination failure appeared at 8% (2/25), and 48% hit the
+# 1024-token cap -- but most of those are genuinely dense images with
+# real multi-line content (up to 88 real transcribed lines), not failures.
+# This is a materially better, though not perfect, operating point than
+# the completely broken default -- report the residual degeneration/
+# rambling rate alongside scores, same treatment as Aria and MiniCPM.
+#
+# Start the server first:
+#   CUDA_VISIBLE_DEVICES=1 vllm serve llava-hf/llava-v1.6-34b-hf --port 8234
+#
+# Then:
+#   python3 scripts/run_inference.py --config configs/llava16_34b_test_split.yaml
+#   python3 scripts/score.py --manifest dataset/manifest_test.json \
+#       --predictions results/test-split-llava16-34b/predictions.json \
+#       --out results/test-split-llava16-34b/scores.json
+
+run_name: test-split-llava16-34b
+
+model: llava-hf/llava-v1.6-34b-hf
+
+base_url: http://localhost:8234/v1
+api_key: EMPTY
+
+manifest: dataset/manifest_test.json
+output: results/test-split-llava16-34b/predictions.json
+
+prompt: READ_ALL_TEXT
+temperature: 0.0
+max_tokens: 1024
+concurrency: 4
+max_retries: 3
+repetition_penalty: 1.3

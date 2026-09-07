@@ -1,0 +1,54 @@
+# Full BSTD test-split run against Gemma 3 27B (google/gemma-3-27b-it),
+# the general-purpose multimodal Gemma 3 -- not the narrow DocVQA-tuned
+# PaliGemma checkpoint ruled out earlier for poor task fit.
+#
+# No repetition_penalty set here, deliberately -- Gemma 3's own
+# generation_config.json ships no repetition_penalty recommendation (it
+# does specify do_sample/top_k/top_p, but this repo forces temperature=0
+# greedy decoding uniformly across every model for run-to-run
+# determinism, same as all the others). Per this repo's methodology (see
+# README's Scoring section), we don't invent a number for models that
+# don't ask for one.
+#
+# Start the server first, using the ISOLATED venv-gemma3 (not the main
+# venv):
+#   source venv-gemma3/bin/activate
+#   vllm serve google/gemma-3-27b-it --port 8234 --max-model-len 8192
+#
+# This is NOT optional. Our main venv's vllm==0.8.5 hits a known,
+# documented upstream bug (github.com/vllm-project/vllm#17658 and
+# related issues #14817/#13924/#20341): Gemma 3 generates real tokens
+# (completion_tokens matches max_tokens, finish_reason="length") but they
+# decode to an empty string -- confirmed here on both text-only and
+# multimodal requests, so it's not specific to our task or prompt.
+# vllm==0.8.4 (one patch version older, same torch==2.6.0/transformers
+# pin as our main venv) does not have this bug -- verified directly:
+# same request produces real, coherent, image-grounded output. See
+# README's Known limitations for the full writeup.
+#
+# (Native Gemma3ForConditionalGeneration implementation in vLLM otherwise
+# -- proper architectures field, chat_template.json, no custom modeling
+# code. Gated repo: requires `hf auth login` with an account that has
+# accepted Gemma's license on the model page first.)
+#
+# Then:
+#   python3 scripts/run_inference.py --config configs/gemma3_test_split.yaml
+#   python3 scripts/score.py --manifest dataset/manifest_test.json \
+#       --predictions results/test-split-gemma3-27b/predictions.json \
+#       --out results/test-split-gemma3-27b/scores.json
+
+run_name: test-split-gemma3-27b
+
+model: google/gemma-3-27b-it
+
+base_url: http://localhost:8234/v1
+api_key: EMPTY
+
+manifest: dataset/manifest_test.json
+output: results/test-split-gemma3-27b/predictions.json
+
+prompt: READ_ALL_TEXT
+temperature: 0.0
+max_tokens: 1024
+concurrency: 8
+max_retries: 3

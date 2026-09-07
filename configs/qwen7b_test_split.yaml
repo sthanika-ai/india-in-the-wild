@@ -1,0 +1,37 @@
+# Full BSTD test-split run against Qwen2.5-VL-7B-Instruct: every image where
+# BSTD's own "split" field is "test" (1,319 images, 24,987 gold text items --
+# manifest_test.json keeps all of them, including the 58 with no legible text).
+# This config reproduces the headline Qwen2.5-VL-7B row in the README's
+# leaderboard and in india_in_the_wild_report.html.
+#
+# Start the server first, in a separate terminal:
+#   CUDA_VISIBLE_DEVICES=1 vllm serve Qwen/Qwen2.5-VL-7B-Instruct --port 8234
+#
+# Then:
+#   python3 scripts/run_inference.py --config configs/qwen7b_test_split.yaml
+#   python3 scripts/score.py --manifest dataset/manifest_test.json \
+#       --predictions results/test-split-qwen2.5-vl-7b/predictions.json \
+#       --out results/test-split-qwen2.5-vl-7b/scores.json
+
+run_name: test-split-qwen2.5-vl-7b
+
+model: Qwen/Qwen2.5-VL-7B-Instruct
+
+base_url: http://localhost:8234/v1
+api_key: EMPTY
+
+manifest: dataset/manifest_test.json
+output: results/test-split-qwen2.5-vl-7b/predictions.json
+
+prompt: READ_ALL_TEXT
+temperature: 0.0
+max_tokens: 1024
+concurrency: 8
+max_retries: 3
+# Qwen's own recommended default. It is not a free choice: at 1.05 this model
+# degenerates into repetition loops on a meaningful share of images, and
+# raising repetition_penalty does reduce that -- but at the cost of recall on
+# every other language, without a clear net F1 gain. Kept at the model's own
+# default rather than tuned around one failure mode; see the README's
+# Results section for the same reasoning applied to Pixtral.
+repetition_penalty: 1.05

@@ -1,0 +1,49 @@
+# vllm is pinned to 0.26.0: the version that closes every vLLM CVE in
+# this repo's latest security scan (CVE-2026-71486, -73555, -73556,
+# -73557, -73559 -- unauthenticated DoS / info-leak paths in the
+# OpenAI-compatible server endpoints).
+#
+# This pin is NOT freely movable in either direction:
+#   - vllm==0.26.0's metadata hard-requires torch==2.11.0 exactly
+#     (verified against the published wheel), and torch 2.11.0 has no
+#     CUDA 12.4 build -- only cu126/cu128/cu129/cu130. Confirm your
+#     driver supports at least CUDA 12.6 (`nvidia-smi`'s reported "CUDA
+#     Version") before installing; there is no build that avoids this.
+#   - vllm==0.26.0 also caps setuptools<81.0.0, which makes the
+#     setuptools advisory below impossible to patch while vLLM is pinned.
+#
+# Install with:
+#   pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu126
+#   pip install -r requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.11.0
+
+vllm==0.26.0
+
+# vllm==0.26.0 itself requires transformers>=5.5.3 -- pinned explicitly
+# rather than left unconstrained, matching this repo's existing practice
+# of not letting an unconstrained resolver pick whatever is newest.
+# 5.10.1 is the lowest available release at/above the fix version for
+# CVE-2026-9856 (arbitrary file write via path traversal in
+# save_pretrained()), the highest-versioned transformers CVE in this
+# repo's last scan.
+transformers==5.10.1
+
+openai
+pyyaml
+
+# Two packages flagged in the last scan are deliberately absent here:
+#
+# diskcache (GHSA-w8v5-vhqr-4h9v, pickle-by-default RCE). No fixed
+# release exists -- 5.6.3 is still the newest on PyPI -- so this one was
+# closed by removal rather than patching: vllm==0.24.0 declared
+# `diskcache==5.6.3` as a direct dependency, and vllm==0.26.0 dropped it
+# entirely. Verified by resolving this file: 106 packages, diskcache not
+# among them.
+#
+# setuptools (CVE-2026-59890) cannot be patched here: the fix landed in
+# 83.0.0, but vllm==0.26.0 requires setuptools<81.0.0, so pinning 83.0.0
+# is a hard resolver conflict (verified: ResolutionImpossible). It is also
+# inapplicable to this repo -- the bug is in MANIFEST.in glob handling
+# when building an sdist on macOS APFS/HFS+, and this repo ships no
+# MANIFEST.in, no setup.py and no sdist. Revisit when vLLM lifts the cap.

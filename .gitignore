@@ -1,0 +1,25 @@
+# Raw BSTD dataset: tens of GB of photographs, and this repo does not
+# confirm redistribution rights for them. Download separately -- see
+# README.md -- and place it at BSTD/ locally; never commit it.
+/BSTD/
+
+# Run output and the polished write-up: kept locally, not pushed. The
+# pipeline that produces them (scripts/, configs/) is what this repo
+# publishes; README's Results section summarizes the numbers without
+# linking to either.
+/results/
+/india_in_the_wild_report.html
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+venv-*/
+benchvenv/
+*.egg-info/
+
+# OS / editor cruft
+.DS_Store
+.vscode/
+.idea/
