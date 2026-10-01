@@ -1,173 +1,98 @@
 # India in the Wild
 
-Tests whether vision-language models can read what India actually looks
-like: hand-painted shop signage, price and fare boards, bilingual and
-multi-script hoardings — photographed in the wild, not scanned clean
-printed pages. Every item has a verifiable gold answer (the sign says what
-it says), so scoring is programmatic, not model-judged.
+A scene-text reading benchmark that tests whether vision-language models can read what India actually looks like: hand-painted signage, fare boards and multi-script hoardings, photographed in the wild.
 
-**Current scope:** full-image reading, sourced from [BSTD](#dataset), a
-scene-text-in-the-wild dataset covering 14 Indian scripts. This does not
-cover handwritten forms or printed documents (lab reports, etc.) — BSTD is
-street-scene photography, not document photography; a different source
-would be needed for that leg.
+[![License: MIT](https://img.shields.io/badge/code-MIT-56BF4F?style=flat-square&labelColor=1E281F)](LICENSE)
+[![Data: BSTD](https://img.shields.io/badge/data-BSTD%20(CC%20BY--SA%204.0)-56BF4F?style=flat-square&labelColor=1E281F)](#license)
+[![Report](https://img.shields.io/badge/report-sthanika.ai-56BF4F?style=flat-square&labelColor=1E281F&logo=firefox&logoColor=white)](https://sthanika.ai/research/india-in-the-wild-2026)
 
-**Eight open-weight vision-language models** have been run over BSTD's full
-`test` split (1,319 images, 24,987 gold text items) under an identical prompt
-and manifest.
+## What it measures
 
-## Task
+Whether a model can both find and read text in real street photographs. It is shown one full, unedited photo and asked to transcribe every legible piece of text in its original script, one item per line (exact prompt in `scripts/prompts.py`). There is no cropping and no hint about where the text is. Every item has a verifiable gold answer, so scoring is programmatic and not model-judged.
 
-A model is shown one full, unedited photograph and asked to transcribe
-every piece of legible text it can read, in its original script, one item
-per line (exact wording: [`scripts/prompts.py`](scripts/prompts.py)). No
-cropping, no hints about where the text is — the model has to both find
-and read it.
+The source is BSTD (BharatSceneTextDataset), real photographs from across India annotated at the word or phrase level across 14 scripts: English, Hindi, Bengali, Tamil, Telugu, Kannada, Malayalam, Marathi, Gujarati, Punjabi, Odia, Assamese, Urdu and Meitei. Eight open-weight VLMs have been run over BSTD's full test split (1,319 images, 24,987 gold text items). It does not cover handwritten forms or printed documents, because BSTD is street-scene photography. Report: [sthanika.ai](https://sthanika.ai/research/india-in-the-wild-2026)
 
-## Dataset
-
-BSTD is [BharatSceneTextDataset](https://github.com/Bhashini-IITJ/BharatSceneTextDataset),
-a scene-text dataset of real photographs from across India,
-annotated at the word/phrase level with a polygon, transcribed text, and a
-script-language label, across English, Hindi,
-Bengali, Tamil, Telugu, Kannada, Malayalam, Marathi, Gujarati, Punjabi,
-Odia, Assamese, Urdu, and Meitei. This repo's benchmark runs on BSTD's own
-`test` split only (`--split test`).
-
-<img src="docs/dataset-example.jpg" alt="A museum exhibit label at Mysore Zoo reading &quot;Royal Heritage Squeeze Cage&quot; in English and Kannada, with BSTD's ground-truth annotation boxes outlined in yellow around each word." width="500">
-
-*A BSTD image with its ground truth overlaid — a museum label at Mysore
-Zoo, four Kannada words above their English translation, each word boxed
-as a separate annotation. A model is shown the plain photo (no boxes);
-these mark what its transcription is scored against.
-[Source photo](https://commons.wikimedia.org/wiki/File:Animals_in_Mysore_Zoo_2015_Pic24.jpg)
-by Vis M, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).*
-
-### Cleaning applied
-
-`build_benchmark.py` normalizes noisy `script_language` labels, drops
-3,143 `"UNK"`/`"NA"` placeholder annotations in the `test` split instead
-of scoring them as gold text, and reads each entry's own file extension
-instead of guessing one (recovering 60 `test`-split images an earlier
-version dropped as "missing" for having a non-`.jpg` extension).
-
-## Repo layout
-
-```
-scripts/
-  build_benchmark.py   curates BSTD -> a manifest (this repo's only data-cleaning step)
-  prompts.py           the exact prompt text used for the reading task
-  run_inference.py     client that sends manifest images to a vLLM-served model
-  score.py             scores predictions against manifest gold text
-configs/
-  qwen7b_test_split.yaml      Qwen2.5-VL-7B
-  qwen32b_test_split.yaml     Qwen2.5-VL-32B
-  gemma3_test_split.yaml      Gemma-3-27B
-  aria_test_split.yaml        Aria
-  minicpmv26_test_split.yaml  MiniCPM-V-2.6
-  pixtral_test_split.yaml     Pixtral-12B
-  llava16_34b_test_split.yaml LLaVA-1.6-34B
-  ayavision_test_split.yaml   Aya-Vision-8B
-dataset/
-  manifest_test.json          every BSTD "test"-split image, no exceptions (1,319 images)
-```
-
-One config per leaderboard model, same manifest and prompt throughout --
-`qwen7b_test_split.yaml` is the one "Running it" walks through end to
-end; every other config is a drop-in swap for its step 3. Running one
-produces a `results/<run_name>/` directory: `predictions.json` (raw
-model output per image, plus per-image latency/token counts),
-`run.log` (timestamped progress and timing summary), and once scored,
-`scores.json` (recall/precision/F1, overall and per dominant script).
-Generated locally, not committed.
-
-## Running it
+## Quickstart
 
 ```bash
+git clone https://github.com/sthanika-ai/india-in-the-wild.git
+cd india-in-the-wild
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# 1. build the full test-split manifest from BSTD -- optional, dataset/ is already committed
-python3 scripts/build_benchmark.py --out dataset/manifest_test.json --split test --per-script-cap 999999
-
-# 2. serve a vision-capable model with vLLM (separate terminal)
+# 1. Serve a vision-capable model with vLLM (separate terminal)
 vllm serve Qwen/Qwen2.5-VL-7B-Instruct --port 8234
 
-# 3. run the benchmark and score it
+# 2. Run the benchmark
 python3 scripts/run_inference.py --config configs/qwen7b_test_split.yaml
+
+# 3. Score it
 python3 scripts/score.py \
   --manifest dataset/manifest_test.json \
   --predictions results/test-split-qwen2.5-vl-7b/predictions.json \
   --out results/test-split-qwen2.5-vl-7b/scores.json
 ```
 
-To run any other leaderboard model, serve its checkpoint (step 2) and swap
-in that model's config for step 3 — each file in `configs/` carries the
-exact `vllm serve` command it needs in its header comment.
+The manifest `dataset/manifest_test.json` is already committed. To rebuild it from BSTD:
 
-`run_inference.py` only talks to an OpenAI-compatible endpoint (`base_url`
-+ `model` in the config) — swap in any other vLLM-served checkpoint, or
-point it at a hosted API that accepts the same chat-completions
-image-input format, without changing the script.
+```bash
+python3 scripts/build_benchmark.py --out dataset/manifest_test.json --split test --per-script-cap 999999
+```
 
-## Scoring
+Notes:
 
-Two complementary metrics, each with an exact and a fuzzy variant, combined into F1:
-
-- **recall** — of BSTD's gold text, how much did the model find? For every
-  gold string, does it appear (exact substring, or a fuzzy-matching output
-  line) anywhere in the model's output.
-- **precision** — of the model's output, how much is real? For every line
-  the model produced, is it supported by some gold string (exact substring
-  either direction, or a fuzzy match) — the complement to recall: on images
-  with *zero* gold text, does the model still claim to read something?
-
-Exact/fuzzy definitions: **exact** is a normalized substring match; **fuzzy**
-additionally counts a match within 0.8 similarity
-([`difflib.SequenceMatcher`](https://docs.python.org/3/library/difflib.html)),
-forgiving a dropped matra or a single swapped character without forgiving a
-wrong reading. Neither metric checks ordering.
-
-**Precision comes with a real caveat, unlike recall.** BSTD's annotation
-coverage is not guaranteed exhaustive — a busy photo may have real,
-legible text nobody bothered to annotate. Recall doesn't care (it only
-checks whether annotated text was found), but precision does: a model
-correctly reading real text BSTD's annotators skipped counts as a "false
-positive" here even though the model did nothing wrong. Treat precision as
-an upper bound on apparent hallucination, not a clean ground-truth
-measurement — see `scripts/score.py`'s module docstring for the full
-reasoning.
+- **Other models.** Each file in `configs/` is a drop-in swap for step 2, and its header comment carries the exact `vllm serve` command it needs. Configs exist for Qwen2.5-VL-7B and 32B, Gemma-3-27B, Aria, MiniCPM-V-2.6, Pixtral-12B, LLaVA-1.6-34B and Aya-Vision-8B.
+- **Hosted APIs.** `run_inference.py` only talks to an OpenAI-compatible endpoint (set `base_url` and model in the config), so any vLLM-served checkpoint or hosted API that accepts chat-completions image input works without changing the script.
+- **Outputs.** A run writes `results/<run_name>/` with `predictions.json` (raw output, latency and token counts per image), `run.log`, and once scored `scores.json` (recall, precision and F1, overall and per dominant script). These are generated locally, not committed.
+- **Cleaning.** `build_benchmark.py` normalises noisy `script_language` labels, drops 3,143 "UNK"/"NA" placeholder annotations in the test split, and reads each entry's own file extension, which recovers 60 test images an earlier version dropped as missing.
 
 ## Results
 
-All eight models saw the identical manifest (`dataset/manifest_test.json`,
-1,319 images), the identical prompt (`READ_ALL_TEXT` in
-[`scripts/prompts.py`](scripts/prompts.py)), temperature 0, `max_tokens`
-1024 and concurrency 8 -- less the one or two images per model that failed
-every retry. Rows are ordered by fuzzy recall.
+All eight models saw the identical manifest (1,319 images) and prompt, at temperature 0, `max_tokens` 1024 and concurrency 8, less the one or two images per model that failed every retry. Rows are ordered by fuzzy recall.
 
-| # | model | checkpoint | recall (exact/fuzzy) | precision (exact/fuzzy) | F1 (exact/fuzzy) |
-|---|---|---|---|---|---|
-| 1 | Qwen2.5-VL-32B | `Qwen/Qwen2.5-VL-32B-Instruct` | 0.444 / 0.460 | 0.461 / 0.483 | 0.453 / **0.471** |
-| 2 | Qwen2.5-VL-7B | `Qwen/Qwen2.5-VL-7B-Instruct` | 0.386 / 0.397 | **0.548 / 0.564** | 0.453 / 0.466 |
-| 3 | Gemma-3-27B | `google/gemma-3-27b-it` | 0.292 / 0.302 | 0.414 / 0.434 | 0.343 / 0.356 |
-| 4 | Aria | `rhymes-ai/Aria` | 0.176 / 0.179 | 0.242 / 0.245 | 0.204 / 0.207 |
-| 5 | MiniCPM-V-2.6 | `openbmb/MiniCPM-V-2_6` | 0.151 / 0.154 | 0.376 / 0.395 | 0.216 / 0.221 |
-| 6 | Pixtral-12B | `mistralai/Pixtral-12B-2409` | 0.119 / 0.121 | 0.322 / 0.330 | 0.173 / 0.178 |
-| 7 | LLaVA-1.6-34B | `llava-hf/llava-v1.6-34b-hf` | 0.115 / 0.116 | 0.439 / 0.442 | 0.182 / 0.184 |
-| 8 | Aya-Vision-8B | `CohereForAI/aya-vision-8b` | 0.056 / 0.059 | 0.297 / 0.308 | 0.094 / 0.098 |
+| # | model | recall (exact / fuzzy) | precision (exact / fuzzy) | F1 (exact / fuzzy) |
+|---|---|---|---|---|
+| 1 | Qwen2.5-VL-32B | 0.444 / 0.460 | 0.461 / 0.483 | 0.453 / 0.471 |
+| 2 | Qwen2.5-VL-7B | 0.386 / 0.397 | 0.548 / 0.564 | 0.453 / 0.466 |
+| 3 | Gemma-3-27B | 0.292 / 0.302 | 0.414 / 0.434 | 0.343 / 0.356 |
+| 4 | Aria | 0.176 / 0.179 | 0.242 / 0.245 | 0.204 / 0.207 |
+| 5 | MiniCPM-V-2.6 | 0.151 / 0.154 | 0.376 / 0.395 | 0.216 / 0.221 |
+| 6 | Pixtral-12B | 0.119 / 0.121 | 0.322 / 0.330 | 0.173 / 0.178 |
+| 7 | LLaVA-1.6-34B | 0.115 / 0.116 | 0.439 / 0.442 | 0.182 / 0.184 |
+| 8 | Aya-Vision-8B | 0.056 / 0.059 | 0.297 / 0.308 | 0.094 / 0.098 |
 
-**Decoding is identical across rows except for one setting: Pixtral-12B and
-LLaVA-1.6-34B ran at `repetition_penalty` 1.30, the other six at 1.05** --
-so any comparison involving those two rows is not strictly controlled.
+How scoring works:
+
+- **Recall:** of BSTD's gold text, how much did the model find? A gold string counts if it appears anywhere in the output, as an exact substring or a fuzzy-matching line.
+- **Precision:** of the model's output, how much is supported by some gold string?
+- **Exact vs fuzzy:** exact is a normalised substring match. Fuzzy also accepts a match within 0.8 similarity (`difflib.SequenceMatcher`), which forgives a dropped matra or one swapped character but not a wrong reading. Neither checks ordering.
+
+Caveats:
+
+- BSTD's annotations are not guaranteed exhaustive. A model that correctly reads real text the annotators skipped is counted as a false positive, so treat precision as an upper bound on apparent hallucination. Recall is unaffected. See the `scripts/score.py` docstring for the full reasoning.
+- Pixtral-12B and LLaVA-1.6-34B ran at `repetition_penalty` 1.30 and the other six at 1.05, so comparisons involving those two rows are not strictly controlled.
+
+Full report: [sthanika.ai](https://sthanika.ai/research/india-in-the-wild-2026)
+
+## Citation
+
+If you use this benchmark, cite this repo and BSTD's underlying paper per the BSTD README.
+
+```bibtex
+@software{india_in_the_wild2026,
+  title  = {India in the Wild: A Scene-Text Reading Benchmark for Indic Scripts},
+  author = {{sthanika-ai}},
+  year   = {2026},
+  url    = {https://github.com/sthanika-ai/india-in-the-wild}
+}
+```
 
 ## License
 
-**Code** — everything under `scripts/` and `configs/` — is MIT licensed; see
-[`LICENSE`](LICENSE). Copyright (c) 2026 Sthānika AI.
+Code (everything under `scripts/` and `configs/`) is MIT, see [LICENSE](LICENSE). The data belongs to BSTD and is not covered by that grant: BSTD is Apache-2.0, and its README states every image is CC BY-SA 4.0, sourced from Wikimedia Commons.
 
-**Data belongs to BSTD**, not covered by the MIT grant above.
-[BSTD](https://github.com/Bhashini-IITJ/BharatSceneTextDataset) is
-Apache-2.0 licensed, and its README states every image is CC BY-SA 4.0,
-sourced from Wikimedia Commons. If you use this benchmark, cite BSTD's
-underlying paper per its README.
+## Related
+
+- BSTD (BharatSceneTextDataset): the source of the images and gold annotations
+- Companion work from sthanika-ai: [BKP-500 model runs](https://github.com/sthanika-ai/BKP-500-model-runs), [token_fertility](https://github.com/sthanika-ai/token_fertility)
+- Site: [sthanika.ai](https://sthanika.ai)
