@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "India in the Wild"
+type: software
+authors:
+  - name: "Sthānika AI"
+url: "https://sthanika.ai/research/india-in-the-wild-2026"
+repository-code: "https://github.com/sthanika-ai/india-in-the-wild"
+license: MIT
+date-released: 2026-10-01
